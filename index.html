@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kalyon-Yazılım | BOQ ve Bütçe Yönetimi</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <!-- Chart.js for Donut Chart -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- SheetJS for Excel Export -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
+    <!-- Phosphor Icons for modern icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+</head>
+<body>
+    <!-- Login View -->
+    <div id="loginView" class="login-view">
+        <div class="login-overlay"></div>
+        <div class="login-box glass-panel">
+            <div class="login-header">
+                <img src="kalyon_insaat.png" alt="Kalyon Logo" class="login-logo">
+                <h2>Kalyon Proje Yönetimi</h2>
+                <p>Kurumsal Keşif ve Bütçe Sistemi</p>
+            </div>
+            <form id="loginForm" class="login-form">
+                <div class="form-group">
+                    <label for="loginUsername"><i class="ph ph-user"></i> Kullanıcı Adı</label>
+                    <input type="text" id="loginUsername" placeholder="admin" required autocomplete="username">
+                </div>
+                <div class="form-group">
+                    <label for="loginPassword"><i class="ph ph-lock-key"></i> Şifre</label>
+                    <input type="password" id="loginPassword" placeholder="••••••••" required autocomplete="current-password">
+                </div>
+                <div id="loginError" class="login-error hidden">
+                    <i class="ph ph-warning-circle"></i> Hatalı kullanıcı adı veya şifre!
+                </div>
+                <button type="submit" class="btn btn-primary login-btn">
+                    Sisteme Giriş Yap <i class="ph ph-sign-in"></i>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Home View -->
+    <div id="homeView" class="home-container hidden">
+        <header class="home-header glass-panel">
+            <div class="logo">
+                <img src="kalyon_insaat.png" alt="Kalyon Logo" style="max-height: 50px;">
+                <h1 style="margin-left: 1rem; font-size: 1.5rem;">Kalyon Proje Yönetimi</h1>
+            </div>
+            <div class="home-header-right">
+                <button id="themeToggleHomeBtn" class="btn btn-outline" style="margin-right: 1rem;" title="Açık/Koyu Tema">
+                    <i class="ph ph-moon"></i>
+                </button>
+                <input type="file" id="importKalyonInput" accept=".kalyon,.json" style="display: none;">
+                <button id="importKalyonBtn" class="btn btn-outline" style="margin-right: 1rem;" title="Projeyi İçe Aktar (.kalyon)">
+                    <i class="ph ph-upload-simple"></i> İçe Aktar
+                </button>
+                <button id="newProjectBtn" class="btn btn-primary">
+                    <i class="ph ph-plus"></i> Yeni Proje Ekle
+                </button>
+            </div>
+        </header>
+        <main class="home-main">
+            <div id="projectsGrid" class="projects-grid">
+                <!-- Projects will be injected here -->
+            </div>
+        </main>
+    </div>
+
+    <!-- Project View (Hidden by default) -->
+    <div id="projectView" class="hidden">
+        <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar glass-panel">
+            <div class="sidebar-header" style="display: flex; align-items: center; justify-content: space-between;">
+                <div class="logo">
+                    <img src="kalyon_insaat.png" alt="Kalyon Logo" style="max-width: 100%; height: auto; max-height: 50px;">
+                </div>
+                <button id="sidebarToggleBtn" class="btn btn-outline" style="padding: 0.5rem; border: none;">
+                    <i class="ph ph-list" style="font-size: 1.5rem;"></i>
+                </button>
+            </div>
+            
+            <nav class="sidebar-nav" id="tabNav">
+                <div class="nav-group">
+                    <div class="nav-group-header expanded" id="headerDirect">
+                        <i class="ph ph-briefcase"></i>
+                        <span>DİREKT GİDERLER</span>
+                        <i class="ph ph-caret-down caret"></i>
+                    </div>
+                    <div class="nav-group-content expanded" id="contentDirect">
+                        <button class="nav-item active" data-tab="ZAİ">Zemin ve Altyapı İşleri</button>
+                        <button class="nav-item" data-tab="YAP">Yapısal İşler</button>
+                        <button class="nav-item" data-tab="MİM">Mimari İşler</button>
+                        <button class="nav-item" data-tab="CEP">Dış Cephe ve Çatı İşleri</button>
+                        <button class="nav-item" data-tab="ELK">Elektrik Tesisat İşleri</button>
+                        <button class="nav-item" data-tab="PEY">Peyzaj ve Dış Saha İşleri</button>
+                        <button class="nav-item" data-tab="ICT">ICT İşleri</button>
+                        <button class="nav-item" data-tab="EKP">Ekipmanlar ve Özel Sistemler</button>
+                        <button class="nav-item" data-tab="MEK">Mekanik Tesisat İşleri</button>
+                        <button class="nav-item" data-tab="MAK">İş Makineleri Giderleri</button>
+                    </div>
+                </div>
+
+                <div class="nav-group">
+                    <div class="nav-group-header" id="headerIndirect">
+                        <i class="ph ph-folder-dashed"></i>
+                        <span>ENDİREKT GİDERLER</span>
+                        <i class="ph ph-caret-down caret"></i>
+                    </div>
+                    <div class="nav-group-content" id="contentIndirect">
+                        <button class="nav-item" data-tab="MOB">Mobilizasyon Giderleri</button>
+                        <button class="nav-item" data-tab="DEM">Demobilizasyon Giderleri</button>
+                        <button class="nav-item" data-tab="PER">Endirekt Personel Ücret Giderleri</button>
+                        <button class="nav-item" data-tab="HIZ">Hizmet Maliyetleri</button>
+                        <button class="nav-item" data-tab="OFI">Ofis Yönetimi Maliyetleri</button>
+                        <button class="nav-item" data-tab="BAN">Banka Masrafları ve Finansal Giderler</button>
+                        <button class="nav-item" data-tab="VER">Vergi Giderleri</button>
+                        <button class="nav-item" data-tab="TAS">Tasarım ve Teknik Danışmanlık</button>
+                        <button class="nav-item" data-tab="ISG">İSG ve Çevre Giderleri</button>
+                        <button class="nav-item" data-tab="KAL">Kalite Güvence ve Kalite Kontrol</button>
+                    </div>
+                </div>
+            </nav>
+
+            <div class="sidebar-footer">
+                <button class="nav-item action-btn" id="showBudgetSummaryBtn" style="justify-content: center; margin-bottom: 0.5rem; border: 1px solid var(--border-color);">
+                    <i class="ph ph-chart-pie-slice"></i>
+                    <span>Proje Maliyet Detayları</span>
+                </button>
+                <button id="exportExcelBtn" class="btn btn-outline w-full">
+                    <i class="ph ph-microsoft-excel-logo"></i>
+                    <span>Excel'e Aktar</span>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content" id="projectTableView">
+            <header class="topbar">
+                <div class="topbar-left">
+                    <button id="backToProjectsBtn" class="btn btn-outline" style="margin-bottom: 0.5rem; padding: 0.5rem 1rem;">
+                        <i class="ph ph-arrow-left"></i> Projelere Dön
+                    </button>
+                    <h1 id="currentTabTitle">Zemin ve Altyapı İşleri (ZAİ)</h1>
+                    <p class="subtitle" id="currentProjectSubtitle">Maliyet ve Keşif Yönetim Paneli</p>
+                </div>
+                <div class="topbar-right">
+                    <div class="search-box" style="position: relative; margin-right: 1rem; display: flex; align-items: center;">
+                        <i class="ph ph-magnifying-glass" style="position: absolute; left: 10px; color: var(--text-muted);"></i>
+                        <input type="text" id="globalSearchInput" placeholder="Tüm pozlarda ara..." style="padding: 0.5rem 1rem 0.5rem 2.2rem; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-panel); color: var(--text-main); font-size: 0.9rem; width: 250px; outline: none; transition: all 0.2s;">
+                    </div>
+                    <button id="themeToggleBtn" class="btn btn-outline" style="margin-right: 1rem;" title="Açık/Koyu Tema">
+                        <i class="ph ph-moon"></i>
+                    </button>
+                    <button id="importExcelBtn" class="btn btn-success" style="margin-right: 1rem; background-color: #10b981; color: white; border-color: #10b981; display: flex; align-items: center; gap: 0.5rem; padding: 0.75rem 1.25rem; border-radius: 8px; font-weight: 500; cursor: pointer; transition: all 0.3s ease;">
+                        <i class="ph ph-microsoft-excel-logo"></i>
+                        <span>Excel'den Ekle</span>
+                    </button>
+                    <button id="newItemBtn" class="btn btn-primary">
+                        <i class="ph ph-plus"></i>
+                        <span>Yeni Poz Ekle</span>
+                    </button>
+                </div>
+            </header>
+
+            <!-- KPI Dashboard -->
+            <div class="kpi-dashboard">
+                <div class="kpi-card glass-panel">
+                    <div class="kpi-icon bg-primary-light">
+                        <i class="ph ph-wallet"></i>
+                    </div>
+                    <div class="kpi-data">
+                        <p>Toplam Maliyet Tutarı</p>
+                        <h3 id="kpiTotalBudget">₺0,00</h3>
+                    </div>
+                </div>
+                <div class="kpi-card glass-panel">
+                    <div class="kpi-icon bg-warning-light" style="background: rgba(245, 158, 11, 0.1); color: #f59e0b;">
+                        <i class="ph ph-currency-circle-dollar"></i>
+                    </div>
+                    <div class="kpi-data">
+                        <p>Gerçekleşen Maliyet</p>
+                        <h3 id="kpiRealizedBudget">₺0,00</h3>
+                    </div>
+                </div>
+                <div class="kpi-card glass-panel">
+                    <div class="kpi-icon bg-success-light">
+                        <i class="ph ph-clock"></i>
+                    </div>
+                    <div class="kpi-data">
+                        <p>Toplam Planlanan Adam-Saat</p>
+                        <h3 id="kpiManHour">0 Saat</h3>
+                    </div>
+                </div>
+                <div class="kpi-card glass-panel">
+                    <div class="kpi-icon bg-primary-light">
+                        <i class="ph ph-check-circle"></i>
+                    </div>
+                    <div class="kpi-data">
+                        <p>Gerçekleşen Adam-Saat</p>
+                        <h3 id="kpiActualManHour">0 Saat</h3>
+                    </div>
+                </div>
+                <div class="kpi-card glass-panel">
+                    <div class="kpi-icon bg-warning-light" style="background: rgba(245, 158, 11, 0.1); color: #f59e0b;">
+                        <i class="ph ph-handshake"></i>
+                    </div>
+                    <div class="kpi-data">
+                        <p>Toplam Sözleşme Tutarı</p>
+                        <h3 id="kpiTotalContract">₺0,00</h3>
+                    </div>
+                </div>
+            </div>
+
+            <!-- DataGrid -->
+            <div class="datagrid-container solid-panel">
+                <div class="table-wrapper">
+                    <table id="boqTable">
+                        <thead>
+                            <tr>
+                                <th class="sticky-col sticky-col-1">#</th>
+                                <th class="sticky-col sticky-col-2">PYP</th>
+                                <th class="sticky-col sticky-col-3">POZ NO</th>
+                                <th class="sticky-col sticky-col-4">POZ TANIMI</th>
+                                <th>PYP TANIMI 1</th>
+                                <th>PYP TANIMI 2</th>
+                                <th>PYP TANIMI 3</th>
+                                <th>KAPSAM</th>
+                                <th>MALZEME DETAY</th>
+                                <th>İHALE PAKETİ</th>
+                                <th>FİRMA</th>
+                                <th>Birim</th>
+                                <th>Teklif Miktarı</th>
+                                <th>İşlenen Miktar</th>
+                                <th>Birim Adam-Saat</th>
+                                <th>Malzeme B.F</th>
+                                <th>İşçilik B.F</th>
+                                <th>Ekipman B.F</th>
+                                <th>Maliyet B.F</th>
+                                <th>Toplam Adam-Saat</th>
+                                <th>Gerçekleşen Adam-Saat</th>
+                                <th class="total-cost-col">Toplam Maliyet</th>
+                                <th>Sözleşme Malz. B.F</th>
+                                <th>Sözleşme İşçilik B.F</th>
+                                <th>Sözleşme B.F</th>
+                                <th class="contract-amount-col">Sözleşme Tutarı</th>
+                                <th>İşlemler</th>
+                            </tr>
+                        </thead>
+                        <tbody id="boqTableBody">
+                            <!-- Rows will be injected by JS -->
+                        </tbody>
+                    </table>
+                </div>
+                <div id="emptyState" class="empty-state">
+                    <i class="ph ph-folder-open"></i>
+                    <p>Bu kategoriye ait henüz poz eklenmemiş.</p>
+                </div>
+            </div>
+        </main>
+
+        <!-- Budget Summary View -->
+        <main class="main-content hidden" id="budgetSummaryView">
+            <div class="top-header" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem;">
+                <div>
+                    <h2 style="font-family: 'Outfit', sans-serif; font-size: 1.8rem; font-weight: 700; background: linear-gradient(135deg, var(--primary), var(--secondary)); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Proje Maliyet Detayları</h2>
+                    <p style="color: var(--text-muted); font-size: 0.95rem; margin-top: 0.2rem;" id="budgetSummarySubtitle">Finansal ve Fiziksel İlerleme Analizi</p>
+                </div>
+                <div style="display: flex; gap: 1rem; align-items: center;">
+                    <div class="glass-panel" style="padding: 0.5rem 1rem; border-radius: 8px; display: flex; align-items: center; gap: 0.5rem;">
+                        <i class="ph ph-money" style="font-size: 1.5rem; color: var(--primary);"></i>
+                        <div>
+                            <p style="font-size: 0.75rem; color: var(--text-muted); margin: 0;">Toplam Proje Maliyeti</p>
+                            <h3 id="summaryTotalBudget" style="font-size: 1.25rem; margin: 0;">₺0,00</h3>
+                        </div>
+                    </div>
+                    <button id="backToTableBtn" class="btn btn-outline">
+                        <i class="ph ph-table"></i> Giderler Tablosu
+                    </button>
+                    <button id="themeToggleSummaryBtn" class="btn btn-outline" title="Açık/Koyu Tema">
+                        <i class="ph ph-moon"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Tabs Navigation -->
+            <div class="summary-tabs">
+                <button class="summary-tab active" data-target="costDist">Maliyet Dağılımları</button>
+                <button class="summary-tab" data-target="projectTrack">Proje Takibi (İlerleme)</button>
+            </div>
+
+            <!-- Maliyet Dağılımları Content -->
+            <div id="costDist" class="summary-tab-content active" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; height: calc(100vh - 180px);">
+                <div class="glass-panel" style="padding: 1.5rem; display: flex; flex-direction: column; align-items: center; height: 100%;">
+                    <h3 style="margin-bottom: 1rem; color: var(--text-main);">Direkt vs Endirekt Giderler</h3>
+                    <div style="width: 100%; max-width: 350px; flex: 1; position: relative;">
+                        <canvas id="costPieChart"></canvas>
+                    </div>
+                </div>
+                <div class="glass-panel" style="padding: 1.5rem; display: flex; flex-direction: column; align-items: center; height: 100%;">
+                    <h3 style="margin-bottom: 1rem; color: var(--text-main);">Kategorilere Göre Dağılım</h3>
+                    <div style="width: 100%; flex: 1; position: relative;">
+                        <canvas id="categoryBarChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Proje Takibi Content -->
+            <div id="projectTrack" class="summary-tab-content hidden" style="height: calc(100vh - 180px); display: flex; flex-direction: column; gap: 1.5rem;">
+                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem;">
+                    <!-- KPI Cards for Tracking -->
+                    <div class="kpi-card glass-panel" style="padding: 1rem;">
+                        <div class="kpi-icon bg-warning-light" style="background: rgba(245, 158, 11, 0.1); color: #f59e0b;"><i class="ph ph-currency-circle-dollar"></i></div>
+                        <div class="kpi-data"><p>Gerçekleşen Maliyet</p><h3 id="trackRealizedBudget" style="font-size: 1.1rem;">₺0,00</h3></div>
+                    </div>
+                    <div class="kpi-card glass-panel" style="padding: 1rem;">
+                        <div class="kpi-icon bg-danger-light" style="background: rgba(239, 68, 68, 0.1); color: #ef4444;"><i class="ph ph-trend-down"></i></div>
+                        <div class="kpi-data"><p>Kalan Bütçe</p><h3 id="trackRemainingBudget" style="font-size: 1.1rem;">₺0,00</h3></div>
+                    </div>
+                    <div class="kpi-card glass-panel" style="padding: 1rem;">
+                        <div class="kpi-icon bg-success-light" style="background: rgba(16, 185, 129, 0.1); color: #10b981;"><i class="ph ph-check-circle"></i></div>
+                        <div class="kpi-data"><p>Gerçekleşen Adam-Saat</p><h3 id="trackActualManHour" style="font-size: 1.1rem;">0 Saat</h3></div>
+                    </div>
+                    <div class="kpi-card glass-panel" style="padding: 1rem;">
+                        <div class="kpi-icon bg-danger-light" style="background: rgba(239, 68, 68, 0.1); color: #ef4444;"><i class="ph ph-clock-counter-clockwise"></i></div>
+                        <div class="kpi-data"><p>Kalan Adam-Saat</p><h3 id="trackRemainingManHour" style="font-size: 1.1rem;">0 Saat</h3></div>
+                    </div>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; flex: 1;">
+                    <div class="glass-panel" style="padding: 1.5rem; display: flex; flex-direction: column; align-items: center; height: 100%;">
+                        <h3 style="margin-bottom: 1rem; color: var(--text-main);">Parasal İlerleme (%)</h3>
+                        <div style="width: 100%; max-width: 350px; flex: 1; position: relative;">
+                            <canvas id="financialProgressChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="glass-panel" style="padding: 1.5rem; display: flex; flex-direction: column; align-items: center; height: 100%;">
+                        <h3 style="margin-bottom: 1rem; color: var(--text-main);">Fiziksel (Adam-Saat) İlerleme (%)</h3>
+                        <div style="width: 100%; max-width: 350px; flex: 1; position: relative;">
+                            <canvas id="manHourProgressChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+    </div>
+
+    <!-- Modal: Yeni Poz Ekle -->
+    <div id="addItemModal" class="modal-overlay hidden">
+        <div class="modal-content glass-panel">
+            <div class="modal-header">
+                <h2>Yeni Poz Ekle</h2>
+                <button type="button" class="close-btn" id="closeModalBtn"><i class="ph ph-x"></i></button>
+            </div>
+            <div class="modal-body">
+                <form id="addItemForm">
+                    <div class="form-grid">
+                        
+                        <div class="form-section">
+                        <h3 class="section-title"><i class="ph ph-info"></i> Kısım 1: Temel Bilgiler ve Kategorizasyon</h3>
+                        
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="pypCode">PYP Kodu</label>
+                                <input type="text" id="pypCode" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="pozNo">Poz No</label>
+                                <input type="text" id="pozNo" required>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="description">Poz Tanımı (İş Kalemi)</label>
+                            <input type="text" id="description" required>
+                        </div>
+                        
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="pypDesc1">PYP Tanımı 1</label>
+                                <input type="text" id="pypDesc1">
+                            </div>
+                            <div class="form-group">
+                                <label for="pypDesc2">PYP Tanımı 2</label>
+                                <input type="text" id="pypDesc2">
+                            </div>
+                            <div class="form-group">
+                                <label for="pypDesc3">PYP Tanımı 3</label>
+                                <input type="text" id="pypDesc3">
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="scope">Kapsam</label>
+                                <select id="scope">
+                                    <option value="Kalyon Malzeme + Taşeron İşçilik">Kalyon Malzeme + Taşeron İşçilik</option>
+                                    <option value="TAŞERON (MAL+İŞÇİLİK)">TAŞERON (MAL+İŞÇİLİK)</option>
+                                    <option value="Sadece Malzeme">Sadece Malzeme</option>
+                                    <option value="Sadece İşçilik">Sadece İşçilik</option>
+                                    <option value="Diğer">Diğer</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="materialDetail">Malzeme Detay</label>
+                                <input type="text" id="materialDetail">
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="tenderPackage">İhale Paketi</label>
+                                <input type="text" id="tenderPackage">
+                            </div>
+                            <div class="form-group">
+                                <label for="company">Firma</label>
+                                <input type="text" id="company">
+                            </div>
+                        </div>
+                        
+                        <div class="form-row">
+                                <div class="form-group">
+                                    <label for="unit">Ölçü Birimi</label>
+                                    <select id="unit" required>
+                                        <option value="m³">m³</option>
+                                        <option value="m²">m²</option>
+                                        <option value="m">m</option>
+                                        <option value="mt">mt</option>
+                                        <option value="ton">ton</option>
+                                        <option value="adet">adet</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="tenderQuantity">Teklif Miktarı</label>
+                                    <input type="number" id="tenderQuantity" step="0.01" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="processedQuantity">İşlenen Miktar</label>
+                                    <input type="number" id="processedQuantity" step="0.01">
+                                </div>
+                            </div>
+                    </div>
+
+                    <div class="form-section">
+                        <h3 class="section-title"><i class="ph ph-trend-down"></i> Kısım 2: Gider (Maliyet) Bilgileri</h3>
+                        
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="unitManHour">Birim Adam-Saat</label>
+                                <input type="number" id="unitManHour" step="0.01" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="actualManHour">Gerçekleşen Adam-Saat (Toplam)</label>
+                                <input type="number" id="actualManHour" step="0.01">
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="materialCost">Malzeme B.F (₺)</label>
+                                <input type="number" id="materialCost" step="0.01" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="laborCost">İşçilik B.F (₺)</label>
+                                <input type="number" id="laborCost" step="0.01" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="equipmentCost">Ekipman B.F (₺)</label>
+                                <input type="number" id="equipmentCost" step="0.01" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Gider Birim Fiyatı (₺)</label>
+                                <input type="text" id="totalDirectUnitPrice" value="0.00" disabled style="background: var(--bg-main); color: var(--text-main); font-weight: bold; cursor: not-allowed;">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <h3 class="section-title"><i class="ph ph-trend-up"></i> Kısım 3: Gelir (Sözleşme) Bilgileri</h3>
+                        
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="contractMaterialCost">Sözleşme Malzeme B.F (₺)</label>
+                                <input type="number" id="contractMaterialCost" step="0.01" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="contractLaborCost">Sözleşme İşçilik B.F (₺)</label>
+                                <input type="number" id="contractLaborCost" step="0.01" required>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="contractUnitPrice">Sözleşme B.F Toplam (₺)</label>
+                                <input type="number" id="contractUnitPrice" step="0.01" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Sözleşme Tutarı</label>
+                                <input type="text" value="Otomatik Hesaplanır" disabled style="background: var(--bg-main); color: var(--text-muted); cursor: not-allowed;">
+                            </div>
+                        </div>
+                    </div>
+                    </div>
+                    
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline" id="cancelModalBtn" style="padding: 1rem 2rem;">İptal</button>
+                        <button type="submit" class="btn btn-primary" style="padding: 1rem 3rem; font-size: 1.1rem;">
+                            <i class="ph ph-floppy-disk"></i> Pozu Kaydet ve Ekle
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Yeni Proje Ekle -->
+    <div id="addProjectModal" class="modal-overlay hidden">
+        <div class="modal-content glass-panel" style="max-width: 500px;">
+            <div class="modal-header">
+                <h2>Yeni Proje Ekle</h2>
+                <button type="button" class="close-btn" id="closeProjectModalBtn"><i class="ph ph-x"></i></button>
+            </div>
+            <div class="modal-body">
+                <form id="addProjectForm">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="projectName">Proje Adı</label>
+                            <input type="text" id="projectName" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="projectDesc">Proje Açıklaması</label>
+                            <input type="text" id="projectDesc" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Proje Görseli</label>
+                            <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+                                <input type="file" id="projectImageFile" accept="image/*" style="flex: 1 1 100%;">
+                                <span style="color: var(--text-muted); font-size: 0.8rem; width: 100%; text-align: center;">veya URL Girin</span>
+                                <input type="text" id="projectImage" placeholder="Görsel URL'si (https://...)" style="flex: 1 1 100%;">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer" style="margin-top: 2rem;">
+                        <button type="button" class="btn btn-outline" id="cancelProjectModalBtn">İptal</button>
+                        <button type="submit" class="btn btn-primary"><i class="ph ph-check"></i> Projeyi Oluştur</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Projeyi Düzenle -->
+    <div id="editProjectModal" class="modal-overlay hidden">
+        <div class="modal-content glass-panel" style="max-width: 500px;">
+            <div class="modal-header">
+                <h2>Projeyi Düzenle</h2>
+                <button type="button" class="close-btn" id="closeEditProjectModalBtn"><i class="ph ph-x"></i></button>
+            </div>
+            <div class="modal-body">
+                <form id="editProjectForm">
+                    <input type="hidden" id="editProjectId">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="editProjectName">Proje Adı</label>
+                            <input type="text" id="editProjectName" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="editProjectDesc">Proje Açıklaması</label>
+                            <input type="text" id="editProjectDesc" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Proje Görseli</label>
+                            <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+                                <input type="file" id="editProjectImageFile" accept="image/*" style="flex: 1 1 100%;">
+                                <span style="color: var(--text-muted); font-size: 0.8rem; width: 100%; text-align: center;">veya URL Girin</span>
+                                <input type="text" id="editProjectImage" placeholder="Görsel URL'si (https://...)" style="flex: 1 1 100%;">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer" style="margin-top: 2rem; display: flex; justify-content: space-between;">
+                        <button type="button" class="btn btn-danger" id="deleteProjectBtn" style="padding: 0.75rem 1rem;"><i class="ph ph-trash"></i> Sil</button>
+                        <div style="display: flex; gap: 1rem;">
+                            <button type="button" class="btn btn-outline" id="cancelEditProjectModalBtn">İptal</button>
+                            <button type="submit" class="btn btn-primary"><i class="ph ph-check"></i> Kaydet</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Excel'den İçe Aktar -->
+    <div id="importExcelModal" class="modal-overlay hidden">
+        <div class="modal-content glass-panel" style="max-width: 500px;">
+            <div class="modal-header">
+                <h2>Excel'den Toplu Veri Yükle</h2>
+                <button type="button" class="close-btn" id="closeImportModalBtn"><i class="ph ph-x"></i></button>
+            </div>
+            <div class="modal-body" style="text-align: center; padding: 2rem;">
+                <p style="margin-bottom: 1.5rem; color: var(--text-muted);">Sisteme veri yüklemek için önce şablonu indirin, doldurun ve ardından sisteme yükleyin.</p>
+                <button id="downloadTemplateBtn" class="btn btn-outline w-full" style="margin-bottom: 2rem; justify-content: center; padding: 1rem; font-weight: 600;">
+                    <i class="ph ph-download-simple"></i>
+                    <span>Örnek Şablon Excel'i İndir</span>
+                </button>
+                
+                <div class="file-upload-wrapper" style="border: 2px dashed var(--border-color); border-radius: 12px; padding: 3rem 1rem; cursor: pointer; transition: all 0.3s ease; position: relative;" onmouseover="this.style.borderColor='var(--primary)'" onmouseout="this.style.borderColor='var(--border-color)'">
+                    <input type="file" id="excelFileInput" accept=".xlsx, .xls" style="position: absolute; width: 100%; height: 100%; top: 0; left: 0; opacity: 0; cursor: pointer;">
+                    <label for="excelFileInput" class="file-upload-label" style="cursor: pointer; pointer-events: none;">
+                        <i class="ph ph-upload-simple" style="font-size: 3rem; color: var(--primary);"></i>
+                        <span style="display: block; margin-top: 1rem; font-weight: 500;">Dosya Seç veya Sürükle Bırak</span>
+                        <span id="fileNameDisplay" style="display: block; margin-top: 0.5rem; font-size: 0.875rem; color: #10b981; font-weight: bold;">Seçilen Dosya: Yok</span>
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer" style="justify-content: center; padding: 1.5rem;">
+                <button type="button" class="btn btn-primary" id="processImportBtn" style="padding: 1rem 3rem; font-size: 1.1rem;" disabled>
+                    <i class="ph ph-check-circle"></i> Verileri Aktar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast hidden">
+        <i class="ph ph-check-circle"></i>
+        <span>Poz başarıyla kaydedildi!</span>
+    </div>
+
+    <!-- Detail Drawer: Poz Detayları ve Donut Chart -->
+    <div id="detailDrawer" class="drawer-overlay hidden">
+        <div class="drawer glass-panel">
+            <div class="drawer-header">
+                <h2>Poz Bütçe Analizi</h2>
+                <button type="button" class="close-btn" id="closeDetailDrawerBtn"><i class="ph ph-x"></i></button>
+            </div>
+            <div class="drawer-body">
+                <div class="detail-header">
+                    <h3 id="detailCode">21-A097-D-ZAİ-002-01</h3>
+                    <p id="detailDesc">Makine ile derin kazı yapılması</p>
+                </div>
+                
+                <div class="chart-container">
+                    <canvas id="budgetDonutChart"></canvas>
+                </div>
+                
+                <div class="detail-metrics">
+                    <div class="metric-row">
+                        <span>Miktar:</span>
+                        <strong id="detQty">0</strong>
+                    </div>
+                    <div class="metric-row">
+                        <span>Sözleşme Birim Fiyatı:</span>
+                        <strong id="detUnitCost">₺0.00</strong>
+                    </div>
+                    <div class="metric-row highlight">
+                        <span>Toplam Maliyet:</span>
+                        <strong id="detTotalCost">₺0.00</strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Column Visibility Context Menu -->
+    <div id="columnContextMenu" class="context-menu hidden">
+        <div class="context-menu-header">
+            <h4>Sütunları Yönet</h4>
+            <button type="button" class="close-btn" id="closeContextMenuBtn" style="background: none; border: none; cursor: pointer; color: var(--text-muted); font-size: 1.2rem;"><i class="ph ph-x"></i></button>
+        </div>
+        <div class="context-menu-body" id="columnToggleList">
+            <!-- Checkboxes will be generated here -->
+        </div>
+    </div>
+
+    <script src="app.js?v=12"></script>
+</body>
+</html>
