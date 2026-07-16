@@ -190,6 +190,162 @@
             );
         };
 
+        // --- Project Summary Component ---
+        const ProjectSummary = ({ items, nodes, totals, rebarUnit }) => {
+            const [expandedFloors, setExpandedFloors] = useState({});
+            const [expandedElements, setExpandedElements] = useState({});
+            
+            const toggleFloor = (floorId) => {
+                setExpandedFloors(prev => ({ ...prev, [floorId]: !prev[floorId] }));
+            };
+
+            const toggleElement = (elId) => {
+                setExpandedElements(prev => ({ ...prev, [elId]: !prev[elId] }));
+            };
+
+            const floors = nodes.filter(n => n.type === 'floor');
+            
+            const floorData = floors.map(floor => {
+                const elements = nodes.filter(n => n.parentId === floor.id);
+                
+                const elementData = elements.map(el => {
+                    const elItems = items.filter(item => item.nodeId === el.id);
+                    const elTotals = elItems.reduce((acc, item) => {
+                        if (item.metrajType === 'Beton') acc.beton += item.calculatedTotal;
+                        if (item.metrajType === 'Kalıp') acc.kalip += item.calculatedTotal;
+                        if (item.metrajType === 'Donatı') acc.donati += item.calculatedTotal;
+                        return acc;
+                    }, { beton: 0, kalip: 0, donati: 0 });
+                    return { id: el.id, name: el.name, totals: elTotals, items: elItems };
+                });
+
+                const floorTotals = elementData.reduce((acc, el) => {
+                    acc.beton += el.totals.beton;
+                    acc.kalip += el.totals.kalip;
+                    acc.donati += el.totals.donati;
+                    return acc;
+                }, { beton: 0, kalip: 0, donati: 0 });
+                
+                return {
+                    id: floor.id,
+                    name: floor.name,
+                    totals: floorTotals,
+                    elements: elementData
+                };
+            });
+
+            const formatNumber = (num) => Number(num).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            
+            const formatRebar = (val) => {
+                if (rebarUnit === 'ton') {
+                    return formatNumber(val / 1000) + ' ton';
+                }
+                return formatNumber(val) + ' kg';
+            };
+
+            return (
+                <div className="flex flex-col gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="glass-panel p-4 flex flex-col items-center justify-center rounded-lg border border-blue-200 dark:border-blue-900 bg-blue-50/50 dark:bg-blue-900/10">
+                            <span className="text-sm font-semibold text-muted mb-1">Toplam Beton</span>
+                            <span className="text-2xl font-bold text-blue-600 dark:text-blue-400">{formatNumber(totals.beton)} m³</span>
+                        </div>
+                        <div className="glass-panel p-4 flex flex-col items-center justify-center rounded-lg border border-orange-200 dark:border-orange-900 bg-orange-50/50 dark:bg-orange-900/10">
+                            <span className="text-sm font-semibold text-muted mb-1">Toplam Kalıp</span>
+                            <span className="text-2xl font-bold text-orange-600 dark:text-orange-400">{formatNumber(totals.kalip)} m²</span>
+                        </div>
+                        <div className="glass-panel p-4 flex flex-col items-center justify-center rounded-lg border border-red-200 dark:border-red-900 bg-red-50/50 dark:bg-red-900/10">
+                            <span className="text-sm font-semibold text-muted mb-1">Toplam Donatı</span>
+                            <span className="text-2xl font-bold text-red-600 dark:text-red-400">{formatRebar(totals.donati)}</span>
+                        </div>
+                    </div>
+
+                    <div>
+                        <h3 className="text-lg font-semibold mb-4">Katlara Göre Dağılım</h3>
+                        <div className="border rounded-lg overflow-x-auto" style={{borderColor: 'var(--border-solid)'}}>
+                            <table className="w-full text-sm text-left border-collapse" style={{ minWidth: '100%' }}>
+                                <thead className="bg-black/5 dark:bg-white/5 uppercase font-semibold">
+                                    <tr>
+                                        <th className="px-4 py-3 border-b border-black/10 dark:border-white/10 w-[40%]">Kategori / İmalat</th>
+                                        <th className="px-4 py-3 border-b border-black/10 dark:border-white/10 text-right w-[20%]">Beton (m³)</th>
+                                        <th className="px-4 py-3 border-b border-black/10 dark:border-white/10 text-right w-[20%]">Kalıp (m²)</th>
+                                        <th className="px-4 py-3 border-b border-black/10 dark:border-white/10 text-right w-[20%]">Donatı</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {floorData.length === 0 ? (
+                                        <tr>
+                                            <td colSpan="4" className="text-center py-6 text-muted italic">Kayıtlı kat bulunamadı.</td>
+                                        </tr>
+                                    ) : (
+                                        floorData.map(floor => (
+                                            <React.Fragment key={floor.id}>
+                                                <tr 
+                                                    className="border-b last:border-0 border-black/5 dark:border-white/5 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
+                                                    onClick={() => toggleFloor(floor.id)}
+                                                >
+                                                    <td className="px-4 py-3 font-medium">
+                                                        <div className="flex items-center gap-2">
+                                                            <i className={`ph ${expandedFloors[floor.id] ? 'ph-caret-down' : 'ph-caret-right'} text-primary`}></i>
+                                                            <i className="ph ph-buildings text-muted"></i>
+                                                            {floor.name}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-4 py-3 text-right font-semibold text-blue-600 dark:text-blue-400">{formatNumber(floor.totals.beton)}</td>
+                                                    <td className="px-4 py-3 text-right font-semibold text-orange-600 dark:text-orange-400">{formatNumber(floor.totals.kalip)}</td>
+                                                    <td className="px-4 py-3 text-right font-semibold text-red-600 dark:text-red-400">{formatRebar(floor.totals.donati)}</td>
+                                                </tr>
+                                                {expandedFloors[floor.id] && floor.elements.map(el => (
+                                                    <React.Fragment key={el.id}>
+                                                        <tr 
+                                                            className="border-b border-black/5 dark:border-white/5 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 cursor-pointer transition-colors"
+                                                            onClick={() => toggleElement(el.id)}
+                                                        >
+                                                            <td className="px-4 py-2 pl-10 text-muted">
+                                                                <div className="flex items-center gap-2">
+                                                                    <i className={`ph ${expandedElements[el.id] ? 'ph-caret-down' : 'ph-caret-right'}`}></i>
+                                                                    <i className="ph ph-cube"></i> {el.name}
+                                                                </div>
+                                                            </td>
+                                                            <td className="px-4 py-2 text-right text-muted">{formatNumber(el.totals.beton)}</td>
+                                                            <td className="px-4 py-2 text-right text-muted">{formatNumber(el.totals.kalip)}</td>
+                                                            <td className="px-4 py-2 text-right text-muted">{formatRebar(el.totals.donati)}</td>
+                                                        </tr>
+                                                        {expandedElements[el.id] && el.items.map(item => {
+                                                            let betonDisplay = '-';
+                                                            let kalipDisplay = '-';
+                                                            let donatiDisplay = '-';
+                                                            if (item.metrajType === 'Beton') betonDisplay = formatNumber(item.calculatedTotal);
+                                                            if (item.metrajType === 'Kalıp') kalipDisplay = formatNumber(item.calculatedTotal);
+                                                            if (item.metrajType === 'Donatı') donatiDisplay = formatRebar(item.calculatedTotal);
+                                                            
+                                                            return (
+                                                                <tr key={item.id} className="border-b border-black/5 dark:border-white/5 bg-black/10 dark:bg-white/10 text-xs">
+                                                                    <td className="px-4 py-2 pl-16 text-muted">
+                                                                        <div className="flex items-center gap-2">
+                                                                            <i className="ph ph-arrow-elbow-down-right"></i>
+                                                                            {item.name}
+                                                                        </div>
+                                                                    </td>
+                                                                    <td className="px-4 py-2 text-right text-muted">{betonDisplay}</td>
+                                                                    <td className="px-4 py-2 text-right text-muted">{kalipDisplay}</td>
+                                                                    <td className="px-4 py-2 text-right text-muted">{donatiDisplay}</td>
+                                                                </tr>
+                                                            );
+                                                        })}
+                                                    </React.Fragment>
+                                                ))}
+                                            </React.Fragment>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
         // --- Metraj View (formerly App) ---
         const MetrajView = ({ projectId, project, onBack, isDark, setIsDark }) => {
             const [rebarUnit, setRebarUnit] = useState('ton'); // 'ton' | 'kg'
@@ -206,6 +362,7 @@
             
             const [selectedNodeId, setSelectedNodeId] = useState(null);
             const [isModalOpen, setIsModalOpen] = useState(false);
+            const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
             const [modalNodeType, setModalNodeType] = useState(null);
             const [targetParentId, setTargetParentId] = useState(null);
             
@@ -252,6 +409,10 @@
                     setItems(prev => prev.filter(i => i.id !== id));
                 }
             };
+
+            const updateItem = (updatedItem) => {
+                setItems(prev => prev.map(item => item.id === updatedItem.id ? updatedItem : item));
+            };
             
             const totals = useMemo(() => {
                 return filteredItems.reduce((acc, item) => {
@@ -272,6 +433,7 @@
                         onAddFloor={() => { setModalNodeType('floor'); setIsModalOpen(true); }}
                         onAddElement={(floorId) => { setTargetParentId(floorId); setModalNodeType('element'); setIsModalOpen(true); }}
                         onDeleteNode={handleDeleteNode}
+                        onOpenSummary={() => setIsSummaryModalOpen(true)}
                     />
                     
                     <main className="main-content flex flex-col w-full overflow-hidden">
@@ -305,7 +467,7 @@
                             </button>
                         </div>
                         
-                        <DataGrid items={filteredItems} rebarUnit={rebarUnit} onDelete={deleteItem} nodes={nodes} />
+                        <DataGrid items={filteredItems} rebarUnit={rebarUnit} onDelete={deleteItem} onUpdateItem={updateItem} nodes={nodes} />
                     </main>
 
                     <div className={`modal-overlay ${isModalOpen ? 'open' : ''}`} onClick={() => setIsModalOpen(false)}></div>
@@ -324,6 +486,19 @@
                             {modalNodeType === 'floor' && <AddNodeForm type="floor" onSave={(name) => { setNodes(prev => [...prev, { id: generateId(), type: 'floor', name, parentId: null }]); setIsModalOpen(false); }} />}
                             {modalNodeType === 'element' && <AddNodeForm type="element" onSave={(name) => { setNodes(prev => [...prev, { id: generateId(), type: 'element', name, parentId: targetParentId }]); setIsModalOpen(false); }} />}
                             {modalNodeType === 'metraj' && <MetrajForm onSave={(itemData) => { setItems(prev => [...prev, { ...itemData, id: generateId(), nodeId: selectedNodeId }]); setIsModalOpen(false); }} />}
+                        </div>
+                    </div>
+
+                    <div className={`modal-overlay ${isSummaryModalOpen ? 'open' : ''}`} onClick={() => setIsSummaryModalOpen(false)}></div>
+                    <div className={`metraj-modal ${isSummaryModalOpen ? 'open' : ''} p-6`} style={{width: '700px', maxWidth: '95vw'}}>
+                        <div className="flex justify-between items-center mb-6 border-b pb-4" style={{borderColor: 'var(--border-solid)'}}>
+                            <h2 className="text-xl font-semibold">Proje Metraj Özeti</h2>
+                            <button onClick={() => setIsSummaryModalOpen(false)} className="text-2xl opacity-70 hover:opacity-100 transition-opacity">
+                                <i className="ph ph-x"></i>
+                            </button>
+                        </div>
+                        <div className="flex-grow overflow-y-auto pr-2">
+                            <ProjectSummary items={items} nodes={nodes} totals={totals} rebarUnit={rebarUnit} />
                         </div>
                     </div>
                 </div>
@@ -372,10 +547,23 @@
         };
 
         // --- Sidebar (Project Tree) ---
-        const Sidebar = ({ nodes, setNodes, selectedNodeId, setSelectedNodeId, onAddFloor, onAddElement, onDeleteNode }) => {
+        const Sidebar = ({ nodes, setNodes, selectedNodeId, setSelectedNodeId, onAddFloor, onAddElement, onDeleteNode, onOpenSummary }) => {
             const floors = nodes.filter(n => n.type === 'floor');
             
             const [contextMenu, setContextMenu] = useState(null);
+            const [expandedFloors, setExpandedFloors] = useState({});
+
+            const toggleFloor = (e, floorId) => {
+                e.stopPropagation();
+                setExpandedFloors(prev => ({
+                    ...prev,
+                    [floorId]: prev[floorId] !== undefined ? !prev[floorId] : false
+                }));
+            };
+
+            const isExpanded = (floorId) => {
+                return expandedFloors[floorId] !== false;
+            };
             
             useEffect(() => {
                 const handleClickOutside = () => setContextMenu(null);
@@ -419,7 +607,13 @@
                                         onClick={() => setSelectedNodeId(floor.id)}
                                         onContextMenu={(e) => handleContextMenu(e, floor.id)}
                                     >
-                                        <div className="flex items-center gap-2">
+                                        <div className="flex items-center gap-1.5">
+                                            <div 
+                                                className="cursor-pointer p-0.5 rounded text-muted hover:text-primary transition-colors"
+                                                onClick={(e) => toggleFloor(e, floor.id)}
+                                            >
+                                                <i className={`ph ${isExpanded(floor.id) ? 'ph-caret-down' : 'ph-caret-right'}`}></i>
+                                            </div>
                                             <i className="ph ph-buildings"></i>
                                             <span>{floor.name}</span>
                                         </div>
@@ -431,23 +625,29 @@
                                             <i className="ph ph-plus"></i>
                                         </button>
                                     </div>
-                                    <div className="ml-4 border-l pl-2 mt-1" style={{borderColor: 'var(--border-solid)'}}>
-                                        {nodes.filter(n => n.parentId === floor.id).map(element => (
-                                            <div 
-                                                key={element.id}
-                                                className={`p-2 rounded-md tree-node text-sm flex items-center gap-2 ${selectedNodeId === element.id ? 'active' : ''}`}
-                                                onClick={() => setSelectedNodeId(element.id)}
-                                                onContextMenu={(e) => handleContextMenu(e, element.id)}
-                                            >
-                                                <i className="ph ph-cube"></i>
-                                                {element.name}
-                                            </div>
-                                        ))}
-                                    </div>
+                                    {isExpanded(floor.id) && (
+                                        <div className="ml-6 border-l pl-2 mt-1" style={{borderColor: 'var(--border-solid)'}}>
+                                            {nodes.filter(n => n.parentId === floor.id).map(element => (
+                                                <div 
+                                                    key={element.id}
+                                                    className={`p-2 rounded-md tree-node text-sm flex items-center gap-2 ${selectedNodeId === element.id ? 'active' : ''}`}
+                                                    onClick={() => setSelectedNodeId(element.id)}
+                                                    onContextMenu={(e) => handleContextMenu(e, element.id)}
+                                                >
+                                                    <i className="ph ph-cube"></i>
+                                                    {element.name}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
                             ))
                         )}
                     </div>
+                    
+                    <button className="btn btn-outline w-full flex justify-center items-center gap-2 mb-2 bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100 hover:border-blue-300 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800" onClick={onOpenSummary}>
+                        <i className="ph ph-chart-pie-slice"></i> Proje Özeti
+                    </button>
                     
                     <button className="btn btn-outline w-full flex justify-center items-center gap-2" onClick={onAddFloor}>
                         <i className="ph ph-folder-plus"></i> Yeni Kat Ekle
@@ -548,7 +748,82 @@
         };
 
         // --- DataGrid ---
-        const DataGrid = ({ items, rebarUnit, onDelete, nodes }) => {
+        const DataGrid = ({ items, rebarUnit, onDelete, onUpdateItem, nodes }) => {
+            const [editingCell, setEditingCell] = useState(null);
+            const [editValue, setEditValue] = useState('');
+
+            const startEditing = (item, field) => {
+                setEditingCell({ id: item.id, field });
+                setEditValue(item[field] !== undefined ? item[field] : '');
+            };
+
+            const commitEdit = () => {
+                if (!editingCell) return;
+                
+                const item = items.find(i => i.id === editingCell.id);
+                if (!item) {
+                    setEditingCell(null);
+                    return;
+                }
+                
+                let newValue = editValue;
+                if (['adet', 'en', 'boy', 'yukseklik', 'minha', 'cap', 'tekilBoy'].includes(editingCell.field)) {
+                    newValue = parseFloat(editValue) || 0;
+                }
+
+                const updatedItem = { ...item, [editingCell.field]: newValue };
+                
+                let newTotal = updatedItem.calculatedTotal;
+                const a = parseFloat(updatedItem.adet) || 0;
+                const e = parseFloat(updatedItem.en) || 0;
+                const b = parseFloat(updatedItem.boy) || 0;
+                const y = parseFloat(updatedItem.yukseklik) || 0;
+                
+                if (updatedItem.metrajType === 'Beton') {
+                    newTotal = a * e * b * y;
+                } else if (updatedItem.metrajType === 'Kalıp') {
+                    const m = parseFloat(updatedItem.minha) || 0;
+                    const cevreHesabi = 2 * (e + b);
+                    newTotal = (a * cevreHesabi * y) - m;
+                } else if (updatedItem.metrajType === 'Donatı') {
+                    const t = parseFloat(updatedItem.tekilBoy) || 0;
+                    const c = parseFloat(updatedItem.cap) || 8;
+                    newTotal = a * t * ((c * c) / 162);
+                }
+                
+                updatedItem.calculatedTotal = newTotal;
+                onUpdateItem(updatedItem);
+                
+                setEditingCell(null);
+            };
+
+            const renderCell = (item, field, displayValue) => {
+                if (field === 'minha' && item.metrajType !== 'Kalıp') return <span className="text-muted">-</span>;
+                if (['en', 'boy', 'yukseklik'].includes(field) && item.metrajType === 'Donatı') return <span className="text-muted">-</span>;
+                if (['cap', 'tekilBoy'].includes(field) && item.metrajType !== 'Donatı') return <span className="text-muted">-</span>;
+
+                const isEditing = editingCell?.id === item.id && editingCell?.field === field;
+                if (isEditing) {
+                    return (
+                        <input 
+                            type="text" 
+                            className="form-input text-sm p-1 h-8 min-w-[60px] text-center" 
+                            value={editValue} 
+                            onChange={e => setEditValue(e.target.value)}
+                            onBlur={commitEdit}
+                            onKeyDown={e => { if(e.key === 'Enter') commitEdit(); if(e.key === 'Escape') setEditingCell(null); }}
+                            autoFocus
+                        />
+                    );
+                }
+                
+                return (
+                    <div className="cursor-pointer min-h-[24px] hover:bg-black/10 dark:hover:bg-white/10 p-1 rounded transition-colors text-center" onDoubleClick={() => startEditing(item, field)}>
+                        {displayValue !== undefined && displayValue !== null && displayValue !== '' ? displayValue : '-'}
+                    </div>
+                );
+            };
+
             if (items.length === 0) {
                 return (
                     <div className="glass-panel flex-grow flex flex-col items-center justify-center text-muted p-10">
@@ -561,16 +836,23 @@
 
             return (
                 <div className="glass-panel table-container">
-                    <table className="w-full text-left border-collapse">
-                        <thead className="sticky top-0 z-10" style={{background: 'var(--th-bg)', backdropFilter: 'blur(10px)'}}>
+                    <table className="w-full text-left border-collapse whitespace-nowrap">
+                        <thead className="sticky top-0 z-10 text-sm" style={{background: 'var(--th-bg)', backdropFilter: 'blur(10px)'}}>
                             <tr>
-                                <th className="p-4 border-b" style={{borderColor: 'var(--border-solid)'}}>Eleman / İmalat</th>
-                                <th className="p-4 border-b" style={{borderColor: 'var(--border-solid)'}}>Tip</th>
-                                <th className="p-4 border-b text-right" style={{borderColor: 'var(--border-solid)'}}>Metraj (Hesaplanan)</th>
-                                <th className="p-4 border-b text-center" style={{borderColor: 'var(--border-solid)'}}>İşlem</th>
+                                <th className="p-3 border-b" style={{borderColor: 'var(--border-solid)'}}>Eleman / İmalat</th>
+                                <th className="p-3 border-b" style={{borderColor: 'var(--border-solid)'}}>Tip</th>
+                                <th className="p-3 border-b text-center" style={{borderColor: 'var(--border-solid)'}}>Adet</th>
+                                <th className="p-3 border-b text-center" style={{borderColor: 'var(--border-solid)'}}>En (m)</th>
+                                <th className="p-3 border-b text-center" style={{borderColor: 'var(--border-solid)'}}>Boy (m)</th>
+                                <th className="p-3 border-b text-center" style={{borderColor: 'var(--border-solid)'}}>Yükseklik (m)</th>
+                                <th className="p-3 border-b text-center" style={{borderColor: 'var(--border-solid)'}}>Minha (m²)</th>
+                                <th className="p-3 border-b text-center" style={{borderColor: 'var(--border-solid)'}}>Çap (Ø)</th>
+                                <th className="p-3 border-b text-center" style={{borderColor: 'var(--border-solid)'}}>Tekil Boy (m)</th>
+                                <th className="p-3 border-b text-right" style={{borderColor: 'var(--border-solid)'}}>Metraj (Hesaplanan)</th>
+                                <th className="p-3 border-b text-center" style={{borderColor: 'var(--border-solid)'}}>İşlem</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody className="text-sm">
                             {items.map(item => {
                                 const elementName = nodes.find(n => n.id === item.nodeId)?.name || 'Bilinmeyen Eleman';
                                 
@@ -587,11 +869,23 @@
 
                                 return (
                                     <tr key={item.id} className="border-b hover:bg-black/5 dark:hover:bg-white/5 transition-colors" style={{borderColor: 'var(--border-solid)'}}>
-                                        <td className="p-4">
-                                            <div className="font-medium">{item.name}</div>
-                                            <div className="text-xs text-muted">{elementName}</div>
+                                        <td className="p-3 min-w-[200px]">
+                                            <div className="font-medium cursor-pointer hover:text-primary transition-colors" onDoubleClick={() => startEditing(item, 'name')}>
+                                                {editingCell?.id === item.id && editingCell?.field === 'name' ? (
+                                                    <input 
+                                                        type="text" 
+                                                        className="form-input text-sm p-1 h-8 w-full" 
+                                                        value={editValue} 
+                                                        onChange={e => setEditValue(e.target.value)}
+                                                        onBlur={commitEdit}
+                                                        onKeyDown={e => { if(e.key === 'Enter') commitEdit(); if(e.key === 'Escape') setEditingCell(null); }}
+                                                        autoFocus
+                                                    />
+                                                ) : item.name}
+                                            </div>
+                                            <div className="text-xs text-muted mt-1">{elementName}</div>
                                         </td>
-                                        <td className="p-4">
+                                        <td className="p-3">
                                             <span className={`px-2 py-1 text-xs rounded-full ${
                                                 item.metrajType === 'Beton' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' :
                                                 item.metrajType === 'Kalıp' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
@@ -600,8 +894,15 @@
                                                 {item.metrajType}
                                             </span>
                                         </td>
-                                        <td className="p-4 text-right font-semibold text-lg">{displayTotal}</td>
-                                        <td className="p-4 text-center">
+                                        <td className="p-3 align-middle">{renderCell(item, 'adet', item.adet)}</td>
+                                        <td className="p-3 align-middle">{renderCell(item, 'en', item.en)}</td>
+                                        <td className="p-3 align-middle">{renderCell(item, 'boy', item.boy)}</td>
+                                        <td className="p-3 align-middle">{renderCell(item, 'yukseklik', item.yukseklik)}</td>
+                                        <td className="p-3 align-middle">{renderCell(item, 'minha', item.minha)}</td>
+                                        <td className="p-3 align-middle">{renderCell(item, 'cap', item.cap)}</td>
+                                        <td className="p-3 align-middle">{renderCell(item, 'tekilBoy', item.tekilBoy)}</td>
+                                        <td className="p-3 text-right font-semibold text-base align-middle">{displayTotal}</td>
+                                        <td className="p-3 text-center align-middle">
                                             <button 
                                                 onClick={() => onDelete(item.id)}
                                                 className="text-red-500 hover:text-red-700 p-2 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
