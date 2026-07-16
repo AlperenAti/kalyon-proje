@@ -170,10 +170,11 @@ function init() {
     // Check Authentication
     if (sessionStorage.getItem('kalyon_authenticated') !== 'true') {
         document.getElementById('loginView').classList.remove('hidden');
+        document.getElementById('moduleSelectView').classList.add('hidden');
         document.getElementById('homeView').classList.add('hidden');
     } else {
         document.getElementById('loginView').classList.add('hidden');
-        document.getElementById('homeView').classList.remove('hidden');
+        document.getElementById('moduleSelectView').classList.remove('hidden');
     }
 
     migrateData();
@@ -203,7 +204,7 @@ function setupEventListeners() {
             if (user === 'admin' && pass === 'emrahthemaestro') {
                 sessionStorage.setItem('kalyon_authenticated', 'true');
                 document.getElementById('loginView').classList.add('hidden');
-                document.getElementById('homeView').classList.remove('hidden');
+                document.getElementById('moduleSelectView').classList.remove('hidden');
                 err.classList.add('hidden');
                 renderHome();
             } else {

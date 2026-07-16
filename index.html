@@ -42,6 +42,37 @@
         </div>
     </div>
 
+    <!-- Module Selection View -->
+    <div id="moduleSelectView" class="hidden" style="min-height: 100vh; background: var(--bg-main); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2rem;">
+        <div style="text-align: center; margin-bottom: 3rem;">
+            <img src="kalyon_insaat.png" alt="Kalyon Logo" style="height: 60px; filter: var(--logo-filter, none); margin-bottom: 1rem;">
+            <h1 style="font-size: 2rem; color: var(--text-main); font-weight: 700;">Kalyon Proje Yönetim Sistemi</h1>
+            <p style="color: var(--text-muted); font-size: 1.1rem;">Lütfen işlem yapmak istediğiniz modülü seçiniz.</p>
+        </div>
+        
+        <div style="display: flex; gap: 2rem; flex-wrap: wrap; justify-content: center; max-width: 1000px;">
+            <!-- BOQ Module Card -->
+            <div class="glass-panel" style="padding: 3rem 2rem; width: 350px; display: flex; flex-direction: column; align-items: center; text-align: center; border-radius: 1rem; transition: transform 0.3s, box-shadow 0.3s; cursor: pointer;" onmouseover="this.style.transform='translateY(-5px)'; this.style.boxShadow='0 10px 25px rgba(0,0,0,0.1)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none';" onclick="document.getElementById('moduleSelectView').classList.add('hidden'); document.getElementById('homeView').classList.remove('hidden');">
+                <div style="width: 80px; height: 80px; background: rgba(59, 130, 246, 0.1); color: #3b82f6; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2.5rem; margin-bottom: 1.5rem;">
+                    <i class="ph ph-chart-line-up"></i>
+                </div>
+                <h2 style="font-size: 1.5rem; margin-bottom: 1rem; color: var(--text-main);">Proje ve Bütçe Takip Modülü</h2>
+                <p style="color: var(--text-muted); margin-bottom: 2rem; font-size: 0.95rem;">Keşif özetleri, bütçe takibi, maliyet analizi ve adam-saat hesaplamaları.</p>
+                <button class="btn btn-primary" style="width: 100%; transition: background-color 0.3s;" onmouseover="this.style.backgroundColor='#2563eb'" onmouseout="this.style.backgroundColor='var(--primary-color)'">Devam Et <i class="ph ph-arrow-right"></i></button>
+            </div>
+            
+            <!-- Metraj Module Card -->
+            <div class="glass-panel" style="padding: 3rem 2rem; width: 350px; display: flex; flex-direction: column; align-items: center; text-align: center; border-radius: 1rem; transition: transform 0.3s, box-shadow 0.3s; cursor: pointer;" onmouseover="this.style.transform='translateY(-5px)'; this.style.boxShadow='0 10px 25px rgba(0,0,0,0.1)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none';" onclick="window.location.href = 'kalyon-metraj/index.html';">
+                <div style="width: 80px; height: 80px; background: rgba(16, 185, 129, 0.1); color: #10b981; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2.5rem; margin-bottom: 1.5rem;">
+                    <i class="ph ph-buildings"></i>
+                </div>
+                <h2 style="font-size: 1.5rem; margin-bottom: 1rem; color: var(--text-main);">Metraj Modülü</h2>
+                <p style="color: var(--text-muted); margin-bottom: 2rem; font-size: 0.95rem;">Beton, kalıp ve donatı metraj hesaplamaları, kat ve eleman bazlı WBS takibi.</p>
+                <button class="btn btn-primary" style="width: 100%; background-color: #10b981; border-color: #10b981; transition: background-color 0.3s;" onmouseover="this.style.backgroundColor='#059669'; this.style.borderColor='#059669';" onmouseout="this.style.backgroundColor='#10b981'; this.style.borderColor='#10b981';">Devam Et <i class="ph ph-arrow-right"></i></button>
+            </div>
+        </div>
+    </div>
+
     <!-- Home View -->
     <div id="homeView" class="home-container hidden">
         <header class="home-header glass-panel">
@@ -50,6 +81,9 @@
                 <h1 style="margin-left: 1rem; font-size: 1.5rem;">Kalyon Proje Yönetimi</h1>
             </div>
             <div class="home-header-right">
+                <button id="backToModulesBtn" class="btn btn-outline" style="margin-right: 1rem;" onclick="document.getElementById('homeView').classList.add('hidden'); document.getElementById('moduleSelectView').classList.remove('hidden');" title="Modüllere Dön">
+                    <i class="ph ph-squares-four"></i> Modüller
+                </button>
                 <button id="themeToggleHomeBtn" class="btn btn-outline" style="margin-right: 1rem;" title="Açık/Koyu Tema">
                     <i class="ph ph-moon"></i>
                 </button>

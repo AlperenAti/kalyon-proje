@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="tr" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kalyon-Yazılım | Metraj Yönetimi</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: ['class', '[data-theme="dark"]'],
+        theme: {
+          extend: {
+            colors: {
+              primary: '#2563eb',
+              'primary-light': '#eff6ff',
+            }
+          }
+        }
+      }
+    </script>
+    
+    <!-- Phosphor Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    
+    <!-- React & ReactDOM -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- Babel -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <style>
+      .metraj-modal {
+          position: fixed; top: 0; right: 0; width: 500px; height: 100vh;
+          background: var(--bg-panel-solid);
+          box-shadow: -5px 0 25px rgba(0,0,0,0.1);
+          transform: translateX(100%);
+          transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          z-index: 1000;
+          display: flex; flex-direction: column;
+          border-left: 1px solid var(--border-solid);
+      }
+      .metraj-modal.open { transform: translateX(0); }
+      .modal-overlay {
+          position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 999;
+          opacity: 0; pointer-events: none; transition: opacity 0.3s;
+          backdrop-filter: blur(4px);
+      }
+      .modal-overlay.open { opacity: 1; pointer-events: auto; }
+      
+      .tree-node { cursor: pointer; user-select: none; transition: all 0.2s; }
+      .tree-node:hover { background: var(--glass-hover); }
+      .tree-node.active { background: var(--primary-light); color: var(--primary); border-radius: var(--radius-md); }
+      [data-theme="dark"] .tree-node.active { background: rgba(37, 99, 235, 0.2); }
+      
+      /* Input styles for forms to match dark/light theme correctly */
+      .form-input {
+          width: 100%;
+          padding: 0.5rem 0.75rem;
+          border-radius: var(--radius-md);
+          border: 1px solid var(--border-solid);
+          background: var(--input-bg);
+          color: var(--text-main);
+          outline: none;
+          transition: border-color 0.2s;
+      }
+      .form-input:focus {
+          border-color: var(--primary);
+      }
+      
+      /* Table container scroll */
+      .table-container {
+          overflow-y: auto;
+          flex-grow: 1;
+      }
+      
+      .kpi-gradient {
+          background: linear-gradient(135deg, var(--bg-panel) 0%, rgba(255,255,255,0) 100%);
+      }
+    </style>
+</head>
+<body class="overflow-hidden">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo } = React;
+
+        // --- Helpers ---
+        const generateId = () => Math.random().toString(36).substr(2, 9);
+        
+        // --- Dummy Data ---
+        const initialNodes = [
+            { id: 'f1', type: 'floor', name: 'Bodrum Kat', parentId: null },
+            { id: 'e1', type: 'element', name: 'Temel', parentId: 'f1' },
+            { id: 'e2', type: 'element', name: 'Perde', parentId: 'f1' },
+            { id: 'f2', type: 'floor', name: 'Zemin Kat', parentId: null },
+            { id: 'e3', type: 'element', name: 'Kolon', parentId: 'f2' },
+        ];
+        
+        // --- Project Selection View ---
+        const ProjectSelectionView = ({ projects, setProjects, onSelect, isDark, setIsDark }) => {
+            const [isModalOpen, setIsModalOpen] = useState(false);
+            const [newProjectName, setNewProjectName] = useState('');
+
+            const handleCreate = (e) => {
+                e.preventDefault();
+                if(newProjectName.trim()){
+                    const newProj = { id: generateId(), name: newProjectName.trim(), date: new Date().toLocaleDateString() };
+                    setProjects(prev => [...prev, newProj]);
+                    setNewProjectName('');
+                    setIsModalOpen(false);
+                }
+            };
+
+            const handleDelete = (e, id) => {
+                e.stopPropagation();
+                if(confirm('Projeyi ve içindeki tüm metraj verilerini kalıcı olarak silmek istediğinize emin misiniz?')) {
+                    setProjects(prev => prev.filter(p => p.id !== id));
+                    localStorage.removeItem(`metraj_nodes_${id}`);
+                    localStorage.removeItem(`metraj_items_${id}`);
+                }
+            };
+
+            return (
+                <div className="min-h-screen p-8 flex flex-col">
+                    <header className="flex justify-between items-center mb-10 glass-panel p-4 px-6">
+                        <div className="flex items-center gap-3">
+                            <button className="btn btn-outline p-2 hover:bg-black/5 dark:hover:bg-white/5 mr-2" onClick={() => window.location.href = '../index.html'} title="Ana Modül Seçimine Dön">
+                                <i className="ph ph-squares-four text-xl"></i>
+                            </button>
+                            <img src="kalyon_insaat.png" alt="Logo" className="h-10" style={{filter: 'var(--logo-filter, none)'}} />
+                            <h1 className="text-2xl font-bold">Kalyon Proje Yönetimi <span className="text-muted text-lg font-normal ml-2">| Metraj Modülü</span></h1>
+                        </div>
+                        <div className="flex gap-4">
+                            <button className="btn btn-outline p-2" onClick={() => setIsDark(!isDark)}>
+                                {isDark ? <i className="ph ph-sun text-xl"></i> : <i className="ph ph-moon text-xl"></i>}
+                            </button>
+                            <button className="btn btn-primary flex items-center gap-2" onClick={() => setIsModalOpen(true)}>
+                                <i className="ph ph-plus"></i> Yeni Proje Ekle
+                            </button>
+                        </div>
+                    </header>
+                    
+                    <main className="flex-grow">
+                        <h2 className="text-xl font-semibold mb-6">Projelerim</h2>
+                        {projects.length === 0 ? (
+                            <div className="glass-panel flex flex-col items-center justify-center text-muted p-16">
+                                <i className="ph ph-folder-open text-6xl mb-4 opacity-50"></i>
+                                <p className="text-xl mb-2">Henüz hiç projeniz yok.</p>
+                                <button className="btn btn-primary mt-4" onClick={() => setIsModalOpen(true)}>Yeni Proje Oluştur</button>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                                {projects.map(proj => (
+                                    <div key={proj.id} className="glass-panel p-6 flex flex-col hover:shadow-lg transition-shadow cursor-pointer relative group" onClick={() => onSelect(proj.id)}>
+                                        <button 
+                                            className="absolute top-4 right-4 text-red-500 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-50 dark:hover:bg-red-900/20 p-2 rounded-md"
+                                            onClick={(e) => handleDelete(e, proj.id)}
+                                            title="Projeyi Sil"
+                                        >
+                                            <i className="ph ph-trash text-lg"></i>
+                                        </button>
+                                        <i className="ph ph-folder text-5xl text-primary mb-4"></i>
+                                        <h3 className="text-lg font-bold mb-1">{proj.name}</h3>
+                                        <p className="text-sm text-muted mb-4"><i className="ph ph-calendar-blank"></i> {proj.date}</p>
+                                        <div className="mt-auto">
+                                            <button className="text-primary font-medium flex items-center gap-1 group-hover:gap-2 transition-all">
+                                                Projeye Git <i className="ph ph-arrow-right"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </main>
+
+                    <div className={`modal-overlay ${isModalOpen ? 'open' : ''}`} onClick={() => setIsModalOpen(false)}></div>
+                    <div className={`metraj-modal ${isModalOpen ? 'open' : ''} p-6`}>
+                        <div className="flex justify-between items-center mb-6 border-b pb-4" style={{borderColor: 'var(--border-solid)'}}>
+                            <h2 className="text-xl font-semibold">Yeni Proje Ekle</h2>
+                            <button onClick={() => setIsModalOpen(false)} className="text-2xl opacity-70 hover:opacity-100 transition-opacity"><i className="ph ph-x"></i></button>
+                        </div>
+                        <form onSubmit={handleCreate} className="flex flex-col gap-4">
+                            <div>
+                                <label className="block text-sm mb-1">Proje Adı</label>
+                                <input type="text" className="form-input" required value={newProjectName} onChange={e=>setNewProjectName(e.target.value)} autoFocus />
+                            </div>
+                            <button type="submit" className="btn btn-primary py-2 mt-4">Oluştur</button>
+                        </form>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- Metraj View (formerly App) ---
+        const MetrajView = ({ projectId, project, onBack, isDark, setIsDark }) => {
+            const [rebarUnit, setRebarUnit] = useState('ton'); // 'ton' | 'kg'
+            
+            // Data State (scoped by projectId)
+            const [nodes, setNodes] = useState(() => {
+                const saved = localStorage.getItem(`metraj_nodes_${projectId}`);
+                return saved ? JSON.parse(saved) : initialNodes;
+            });
+            const [items, setItems] = useState(() => {
+                const saved = localStorage.getItem(`metraj_items_${projectId}`);
+                return saved ? JSON.parse(saved) : [];
+            });
+            
+            const [selectedNodeId, setSelectedNodeId] = useState(null);
+            const [isModalOpen, setIsModalOpen] = useState(false);
+            const [modalNodeType, setModalNodeType] = useState(null);
+            const [targetParentId, setTargetParentId] = useState(null);
+            
+            useEffect(() => {
+                localStorage.setItem(`metraj_nodes_${projectId}`, JSON.stringify(nodes));
+            }, [nodes, projectId]);
+            
+            useEffect(() => {
+                localStorage.setItem(`metraj_items_${projectId}`, JSON.stringify(items));
+            }, [items, projectId]);
+            
+            const filteredItems = useMemo(() => {
+                if (!selectedNodeId) return items;
+                const node = nodes.find(n => n.id === selectedNodeId);
+                if (node?.type === 'floor') {
+                    const childIds = nodes.filter(n => n.parentId === selectedNodeId).map(n => n.id);
+                    return items.filter(item => childIds.includes(item.nodeId));
+                }
+                return items.filter(item => item.nodeId === selectedNodeId);
+            }, [items, selectedNodeId, nodes]);
+
+            const handleDeleteNode = (nodeId) => {
+                if(confirm('Bu öğeyi silmek istediğinize emin misiniz? Altındaki tüm kayıtlar da kalıcı olarak silinecektir.')) {
+                    const node = nodes.find(n => n.id === nodeId);
+                    let elementIdsToDelete = [];
+                    let nodeIdsToDelete = [nodeId];
+                    if (node?.type === 'floor') {
+                        const children = nodes.filter(n => n.parentId === nodeId).map(n => n.id);
+                        elementIdsToDelete = [...children];
+                        nodeIdsToDelete = [...nodeIdsToDelete, ...children];
+                    } else {
+                        elementIdsToDelete = [nodeId];
+                    }
+                    setItems(prev => prev.filter(item => !elementIdsToDelete.includes(item.nodeId)));
+                    setNodes(prev => prev.filter(n => !nodeIdsToDelete.includes(n.id)));
+                    if (nodeIdsToDelete.includes(selectedNodeId)) {
+                        setSelectedNodeId(null);
+                    }
+                }
+            };
+
+            const deleteItem = (id) => {
+                if(confirm('Bu metraj kalemini silmek istediğinize emin misiniz?')) {
+                    setItems(prev => prev.filter(i => i.id !== id));
+                }
+            };
+            
+            const totals = useMemo(() => {
+                return filteredItems.reduce((acc, item) => {
+                    if (item.metrajType === 'Beton') acc.beton += item.calculatedTotal;
+                    if (item.metrajType === 'Kalıp') acc.kalip += item.calculatedTotal;
+                    if (item.metrajType === 'Donatı') acc.donati += item.calculatedTotal;
+                    return acc;
+                }, { beton: 0, kalip: 0, donati: 0 });
+            }, [filteredItems]);
+
+            return (
+                <div className="app-container">
+                    <Sidebar 
+                        nodes={nodes} 
+                        setNodes={setNodes}
+                        selectedNodeId={selectedNodeId}
+                        setSelectedNodeId={setSelectedNodeId}
+                        onAddFloor={() => { setModalNodeType('floor'); setIsModalOpen(true); }}
+                        onAddElement={(floorId) => { setTargetParentId(floorId); setModalNodeType('element'); setIsModalOpen(true); }}
+                        onDeleteNode={handleDeleteNode}
+                    />
+                    
+                    <main className="main-content flex flex-col w-full overflow-hidden">
+                        <TopBar 
+                            isDark={isDark} 
+                            setIsDark={setIsDark}
+                            rebarUnit={rebarUnit}
+                            setRebarUnit={setRebarUnit}
+                            onBack={onBack}
+                            projectName={project?.name}
+                        />
+                        
+                        <KPIDashboard totals={totals} rebarUnit={rebarUnit} />
+                        
+                        <div className="flex justify-between items-center my-4">
+                            <h2 className="text-xl font-semibold">
+                                {selectedNodeId ? nodes.find(n => n.id === selectedNodeId)?.name + ' Metrajları' : 'Tüm Metrajlar'}
+                            </h2>
+                            <button 
+                                className="btn btn-primary flex items-center gap-2"
+                                onClick={() => {
+                                    if(!selectedNodeId || nodes.find(n => n.id === selectedNodeId)?.type === 'floor') {
+                                        alert('Lütfen metraj eklemek için ağaçtan bir ELEMAN (Örn: Kolon) seçiniz.');
+                                        return;
+                                    }
+                                    setModalNodeType('metraj');
+                                    setIsModalOpen(true);
+                                }}
+                            >
+                                <i className="ph ph-plus"></i> Yeni Metraj Kalemi
+                            </button>
+                        </div>
+                        
+                        <DataGrid items={filteredItems} rebarUnit={rebarUnit} onDelete={deleteItem} nodes={nodes} />
+                    </main>
+
+                    <div className={`modal-overlay ${isModalOpen ? 'open' : ''}`} onClick={() => setIsModalOpen(false)}></div>
+                    <div className={`metraj-modal ${isModalOpen ? 'open' : ''} p-6`}>
+                        <div className="flex justify-between items-center mb-6 border-b pb-4" style={{borderColor: 'var(--border-solid)'}}>
+                            <h2 className="text-xl font-semibold">
+                                {modalNodeType === 'floor' && 'Yeni Kat Ekle'}
+                                {modalNodeType === 'element' && 'Yeni Eleman Ekle'}
+                                {modalNodeType === 'metraj' && 'Yeni Metraj Kalemi Ekle'}
+                            </h2>
+                            <button onClick={() => setIsModalOpen(false)} className="text-2xl opacity-70 hover:opacity-100 transition-opacity">
+                                <i className="ph ph-x"></i>
+                            </button>
+                        </div>
+                        <div className="flex-grow overflow-y-auto pr-2">
+                            {modalNodeType === 'floor' && <AddNodeForm type="floor" onSave={(name) => { setNodes(prev => [...prev, { id: generateId(), type: 'floor', name, parentId: null }]); setIsModalOpen(false); }} />}
+                            {modalNodeType === 'element' && <AddNodeForm type="element" onSave={(name) => { setNodes(prev => [...prev, { id: generateId(), type: 'element', name, parentId: targetParentId }]); setIsModalOpen(false); }} />}
+                            {modalNodeType === 'metraj' && <MetrajForm onSave={(itemData) => { setItems(prev => [...prev, { ...itemData, id: generateId(), nodeId: selectedNodeId }]); setIsModalOpen(false); }} />}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- Main App Component (Wrapper) ---
+        const App = () => {
+            const [isDark, setIsDark] = useState(true);
+            const [projects, setProjects] = useState(() => {
+                const saved = localStorage.getItem('metraj_projects');
+                if (saved) return JSON.parse(saved);
+                
+                // Data Migration from v1
+                const oldNodes = localStorage.getItem('metraj_nodes');
+                const oldItems = localStorage.getItem('metraj_items');
+                if (oldNodes || oldItems) {
+                    const defaultProject = { id: generateId(), name: 'Varsayılan Proje', date: new Date().toLocaleDateString() };
+                    if (oldNodes) localStorage.setItem(`metraj_nodes_${defaultProject.id}`, oldNodes);
+                    if (oldItems) localStorage.setItem(`metraj_items_${defaultProject.id}`, oldItems);
+                    localStorage.removeItem('metraj_nodes');
+                    localStorage.removeItem('metraj_items');
+                    return [defaultProject];
+                }
+                return [];
+            });
+            const [activeProjectId, setActiveProjectId] = useState(null);
+
+            useEffect(() => {
+                localStorage.setItem('metraj_projects', JSON.stringify(projects));
+            }, [projects]);
+
+            useEffect(() => {
+                if (isDark) {
+                    document.documentElement.setAttribute('data-theme', 'dark');
+                } else {
+                    document.documentElement.removeAttribute('data-theme');
+                }
+            }, [isDark]);
+
+            if (!activeProjectId) {
+                return <ProjectSelectionView projects={projects} setProjects={setProjects} onSelect={setActiveProjectId} isDark={isDark} setIsDark={setIsDark} />;
+            }
+
+            return <MetrajView projectId={activeProjectId} project={projects.find(p=>p.id===activeProjectId)} onBack={() => setActiveProjectId(null)} isDark={isDark} setIsDark={setIsDark} />;
+        };
+
+        // --- Sidebar (Project Tree) ---
+        const Sidebar = ({ nodes, setNodes, selectedNodeId, setSelectedNodeId, onAddFloor, onAddElement, onDeleteNode }) => {
+            const floors = nodes.filter(n => n.type === 'floor');
+            
+            const [contextMenu, setContextMenu] = useState(null);
+            
+            useEffect(() => {
+                const handleClickOutside = () => setContextMenu(null);
+                document.addEventListener('click', handleClickOutside);
+                return () => document.removeEventListener('click', handleClickOutside);
+            }, []);
+
+            const handleContextMenu = (e, nodeId) => {
+                e.preventDefault();
+                setContextMenu({ x: e.pageX, y: e.pageY, nodeId });
+            };
+            
+            return (
+                <aside className="sidebar glass-panel h-full flex flex-col">
+                    <div className="flex items-center gap-3 mb-6 p-2">
+                        <img src="kalyon_insaat.png" alt="Logo" className="h-8" style={{filter: 'var(--logo-filter, none)'}} />
+                        <h1 className="font-bold text-lg">Metraj Sistemi</h1>
+                    </div>
+                    
+                    <div className="flex-grow overflow-y-auto mb-4 pr-2">
+                        <div className="text-sm font-semibold text-muted mb-2 px-2">PROJE AĞACI</div>
+                        <div 
+                            className={`flex justify-between items-center p-2 mb-2 rounded-md tree-node ${!selectedNodeId ? 'active' : ''}`}
+                            onClick={() => setSelectedNodeId(null)}
+                        >
+                            <div className="flex items-center gap-2">
+                                <i className="ph ph-squares-four"></i>
+                                <span>Tüm Proje</span>
+                            </div>
+                        </div>
+                        {floors.map(floor => (
+                            <div key={floor.id} className="mb-2">
+                                <div 
+                                    className={`flex justify-between items-center p-2 rounded-md tree-node ${selectedNodeId === floor.id ? 'active' : ''}`}
+                                    onClick={() => setSelectedNodeId(floor.id)}
+                                    onContextMenu={(e) => handleContextMenu(e, floor.id)}
+                                >
+                                    <div className="flex items-center gap-2">
+                                        <i className="ph ph-buildings"></i>
+                                        <span>{floor.name}</span>
+                                    </div>
+                                    <button 
+                                        className="p-1 rounded hover:bg-black/10 dark:hover:bg-white/10"
+                                        onClick={(e) => { e.stopPropagation(); onAddElement(floor.id); }}
+                                        title="Eleman Ekle"
+                                    >
+                                        <i className="ph ph-plus"></i>
+                                    </button>
+                                </div>
+                                <div className="ml-4 border-l pl-2 mt-1" style={{borderColor: 'var(--border-solid)'}}>
+                                    {nodes.filter(n => n.parentId === floor.id).map(element => (
+                                        <div 
+                                            key={element.id}
+                                            className={`p-2 rounded-md tree-node text-sm flex items-center gap-2 ${selectedNodeId === element.id ? 'active' : ''}`}
+                                            onClick={() => setSelectedNodeId(element.id)}
+                                            onContextMenu={(e) => handleContextMenu(e, element.id)}
+                                        >
+                                            <i className="ph ph-cube"></i>
+                                            {element.name}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                    
+                    <button className="btn btn-outline w-full flex justify-center items-center gap-2" onClick={onAddFloor}>
+                        <i className="ph ph-folder-plus"></i> Yeni Kat Ekle
+                    </button>
+                    
+                    {contextMenu && (
+                        <div 
+                            className="fixed z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-xl rounded-md overflow-hidden"
+                            style={{ top: contextMenu.y, left: contextMenu.x }}
+                        >
+                            <button 
+                                className="w-full text-left px-4 py-2 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 flex items-center gap-2 transition-colors min-w-[120px]"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onDeleteNode(contextMenu.nodeId);
+                                    setContextMenu(null);
+                                }}
+                            >
+                                <i className="ph ph-trash"></i> Sil
+                            </button>
+                        </div>
+                    )}
+                </aside>
+            );
+        };
+
+        // --- TopBar ---
+        const TopBar = ({ isDark, setIsDark, rebarUnit, setRebarUnit, onBack, projectName }) => {
+            return (
+                <header className="flex justify-between items-center mb-6 pb-4 border-b" style={{borderColor: 'var(--border-solid)'}}>
+                    <div className="flex items-center gap-4">
+                        <button className="btn btn-outline p-2 hover:bg-black/5 dark:hover:bg-white/5 transition-colors" onClick={onBack} title="Projelere Dön">
+                            <i className="ph ph-arrow-left text-xl"></i>
+                        </button>
+                        <div>
+                            <h1 className="text-2xl font-bold">{projectName} <span className="text-muted text-lg font-normal ml-2">| Metraj Tablosu</span></h1>
+                            <p className="text-muted text-sm">Kat ve eleman bazlı metraj hesaplamaları</p>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-2 bg-black/5 dark:bg-white/5 p-1 rounded-lg">
+                            <button 
+                                className={`px-3 py-1 text-sm rounded-md transition-colors ${rebarUnit === 'kg' ? 'bg-primary text-white shadow' : ''}`}
+                                onClick={() => setRebarUnit('kg')}
+                            >
+                                Kg
+                            </button>
+                            <button 
+                                className={`px-3 py-1 text-sm rounded-md transition-colors ${rebarUnit === 'ton' ? 'bg-primary text-white shadow' : ''}`}
+                                onClick={() => setRebarUnit('ton')}
+                            >
+                                Ton
+                            </button>
+                        </div>
+                        <button className="btn btn-outline p-2" onClick={() => setIsDark(!isDark)}>
+                            {isDark ? <i className="ph ph-sun text-xl"></i> : <i className="ph ph-moon text-xl"></i>}
+                        </button>
+                    </div>
+                </header>
+            );
+        };
+
+        // --- KPI Dashboard ---
+        const KPIDashboard = ({ totals, rebarUnit }) => {
+            const donatiDisplay = rebarUnit === 'ton' ? (totals.donati / 1000).toFixed(3) : totals.donati.toFixed(2);
+            
+            return (
+                <div className="grid grid-cols-3 gap-6 mb-6">
+                    <div className="glass-panel p-5 kpi-gradient flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-full flex items-center justify-center text-2xl" style={{background: 'rgba(16, 185, 129, 0.1)', color: '#10b981'}}>
+                            <i className="ph ph-wall"></i>
+                        </div>
+                        <div>
+                            <p className="text-sm text-muted mb-1">Toplam Beton</p>
+                            <h3 className="text-2xl font-bold">{totals.beton.toFixed(2)} <span className="text-sm font-normal text-muted">m³</span></h3>
+                        </div>
+                    </div>
+                    <div className="glass-panel p-5 kpi-gradient flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-full flex items-center justify-center text-2xl" style={{background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b'}}>
+                            <i className="ph ph-bounding-box"></i>
+                        </div>
+                        <div>
+                            <p className="text-sm text-muted mb-1">Toplam Kalıp (Plywood)</p>
+                            <h3 className="text-2xl font-bold">{totals.kalip.toFixed(2)} <span className="text-sm font-normal text-muted">m²</span></h3>
+                        </div>
+                    </div>
+                    <div className="glass-panel p-5 kpi-gradient flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-full flex items-center justify-center text-2xl" style={{background: 'rgba(37, 99, 235, 0.1)', color: '#2563eb'}}>
+                            <i className="ph ph-link"></i>
+                        </div>
+                        <div>
+                            <p className="text-sm text-muted mb-1">Toplam Donatı</p>
+                            <h3 className="text-2xl font-bold">{donatiDisplay} <span className="text-sm font-normal text-muted">{rebarUnit === 'ton' ? 'Ton' : 'Kg'}</span></h3>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- DataGrid ---
+        const DataGrid = ({ items, rebarUnit, onDelete, nodes }) => {
+            if (items.length === 0) {
+                return (
+                    <div className="glass-panel flex-grow flex flex-col items-center justify-center text-muted p-10">
+                        <i className="ph ph-tray text-6xl mb-4 opacity-50"></i>
+                        <p className="text-lg">Henüz metraj kaydı bulunmamaktadır.</p>
+                        <p className="text-sm">Ağaçtan bir eleman seçip "Yeni Metraj Kalemi" ekleyebilirsiniz.</p>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="glass-panel table-container">
+                    <table className="w-full text-left border-collapse">
+                        <thead className="sticky top-0 z-10" style={{background: 'var(--th-bg)', backdropFilter: 'blur(10px)'}}>
+                            <tr>
+                                <th className="p-4 border-b" style={{borderColor: 'var(--border-solid)'}}>Eleman / İmalat</th>
+                                <th className="p-4 border-b" style={{borderColor: 'var(--border-solid)'}}>Tip</th>
+                                <th className="p-4 border-b text-right" style={{borderColor: 'var(--border-solid)'}}>Metraj (Hesaplanan)</th>
+                                <th className="p-4 border-b text-center" style={{borderColor: 'var(--border-solid)'}}>İşlem</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {items.map(item => {
+                                const elementName = nodes.find(n => n.id === item.nodeId)?.name || 'Bilinmeyen Eleman';
+                                
+                                let displayTotal = '';
+                                if (item.metrajType === 'Beton') displayTotal = `${item.calculatedTotal.toFixed(2)} m³`;
+                                if (item.metrajType === 'Kalıp') displayTotal = `${item.calculatedTotal.toFixed(2)} m²`;
+                                if (item.metrajType === 'Donatı') {
+                                    if (rebarUnit === 'ton') {
+                                        displayTotal = `${(item.calculatedTotal / 1000).toFixed(3)} Ton`;
+                                    } else {
+                                        displayTotal = `${item.calculatedTotal.toFixed(2)} Kg`;
+                                    }
+                                }
+
+                                return (
+                                    <tr key={item.id} className="border-b hover:bg-black/5 dark:hover:bg-white/5 transition-colors" style={{borderColor: 'var(--border-solid)'}}>
+                                        <td className="p-4">
+                                            <div className="font-medium">{item.name}</div>
+                                            <div className="text-xs text-muted">{elementName}</div>
+                                        </td>
+                                        <td className="p-4">
+                                            <span className={`px-2 py-1 text-xs rounded-full ${
+                                                item.metrajType === 'Beton' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' :
+                                                item.metrajType === 'Kalıp' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
+                                                'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                                            }`}>
+                                                {item.metrajType}
+                                            </span>
+                                        </td>
+                                        <td className="p-4 text-right font-semibold text-lg">{displayTotal}</td>
+                                        <td className="p-4 text-center">
+                                            <button 
+                                                onClick={() => onDelete(item.id)}
+                                                className="text-red-500 hover:text-red-700 p-2 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                                                title="Sil"
+                                            >
+                                                <i className="ph ph-trash text-lg"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+            );
+        };
+
+        // --- Form Components ---
+        const AddNodeForm = ({ type, onSave }) => {
+            const [name, setName] = useState('');
+            return (
+                <div className="flex flex-col gap-4">
+                    <div>
+                        <label className="block text-sm mb-1">{type === 'floor' ? 'Kat Adı' : 'Eleman Adı'}</label>
+                        <input 
+                            type="text" 
+                            className="form-input" 
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                            autoFocus
+                        />
+                    </div>
+                    <button 
+                        className="btn btn-primary"
+                        onClick={() => { if(name.trim()) onSave(name.trim()); }}
+                        disabled={!name.trim()}
+                    >
+                        Ekle
+                    </button>
+                </div>
+            );
+        };
+
+        const MetrajForm = ({ onSave }) => {
+            const [type, setType] = useState('Beton'); // Beton, Kalıp, Donatı
+            
+            // Common Fields
+            const [name, setName] = useState('');
+            const [adet, setAdet] = useState(1);
+            
+            // Beton & Kalıp Fields
+            const [yukseklik, setYukseklik] = useState('');
+            
+            // Beton Specific
+            const [en, setEn] = useState('');
+            const [boy, setBoy] = useState('');
+            
+            // Kalıp Specific
+            const [minha, setMinha] = useState(0);
+            
+            // Donatı Specific
+            const [cap, setCap] = useState('8');
+            const [tekilBoy, setTekilBoy] = useState('');
+
+            // Calculations
+            const calculatedTotal = useMemo(() => {
+                const a = parseFloat(adet) || 0;
+                const e = parseFloat(en) || 0;
+                const b = parseFloat(boy) || 0;
+                const y = parseFloat(yukseklik) || 0;
+                
+                if (type === 'Beton') {
+                    return a * e * b * y;
+                }
+                if (type === 'Kalıp') {
+                    const m = parseFloat(minha) || 0;
+                    // Kalıp Çevresi = 2 * (En + Boy)
+                    const cevreHesabi = 2 * (e + b);
+                    return (a * cevreHesabi * y) - m;
+                }
+                if (type === 'Donatı') {
+                    const t = parseFloat(tekilBoy) || 0;
+                    const c = parseFloat(cap) || 8;
+                    // Uzunluk = Adet * TekilBoy
+                    // Ağırlık = Uzunluk * (Çap^2) / 162
+                    return a * t * ((c * c) / 162);
+                }
+                return 0;
+            }, [type, adet, en, boy, yukseklik, minha, cap, tekilBoy]);
+
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                const itemData = {
+                    metrajType: type,
+                    name, adet: parseFloat(adet) || 1, calculatedTotal,
+                    ...(type === 'Beton' && { en: parseFloat(en), boy: parseFloat(boy), yukseklik: parseFloat(yukseklik) }),
+                    ...(type === 'Kalıp' && { en: parseFloat(en), boy: parseFloat(boy), yukseklik: parseFloat(yukseklik), minha: parseFloat(minha) }),
+                    ...(type === 'Donatı' && { cap: parseFloat(cap), tekilBoy: parseFloat(tekilBoy) })
+                };
+                onSave(itemData);
+            };
+
+            return (
+                <form onSubmit={handleSubmit} className="flex flex-col gap-5 h-full">
+                    {/* Type Selector */}
+                    <div className="flex bg-black/10 dark:bg-white/5 p-1 rounded-lg">
+                        {['Beton', 'Kalıp', 'Donatı'].map(t => (
+                            <button
+                                key={t}
+                                type="button"
+                                className={`flex-1 py-2 text-sm font-medium rounded-md transition-colors ${type === t ? 'bg-panel-solid shadow bg-white dark:bg-gray-700' : 'opacity-70 hover:opacity-100'}`}
+                                onClick={() => setType(t)}
+                            >
+                                {t}
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Common Fields */}
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm mb-1 text-muted">İmalat Adı</label>
+                            <input type="text" className="form-input" required value={name} onChange={e=>setName(e.target.value)} />
+                        </div>
+                        <div>
+                            <label className="block text-sm mb-1 text-muted">Adet</label>
+                            <input type="number" step="any" min="0" className="form-input" required value={adet} onChange={e=>setAdet(e.target.value)} />
+                        </div>
+                    </div>
+
+                    <hr style={{borderColor: 'var(--border-solid)'}} />
+
+                    {/* Type Specific Fields */}
+                    {type === 'Beton' && (
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm mb-1 text-muted">En (m)</label>
+                                <input type="number" step="any" min="0" className="form-input" required value={en} onChange={e=>setEn(e.target.value)} />
+                            </div>
+                            <div>
+                                <label className="block text-sm mb-1 text-muted">Boy (m)</label>
+                                <input type="number" step="any" min="0" className="form-input" required value={boy} onChange={e=>setBoy(e.target.value)} />
+                            </div>
+                            <div className="col-span-2">
+                                <label className="block text-sm mb-1 text-muted">Yükseklik/Kalınlık (m)</label>
+                                <input type="number" step="any" min="0" className="form-input" required value={yukseklik} onChange={e=>setYukseklik(e.target.value)} />
+                            </div>
+                        </div>
+                    )}
+
+                    {type === 'Kalıp' && (
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm mb-1 text-muted">En (m)</label>
+                                <input type="number" step="any" min="0" className="form-input" required value={en} onChange={e=>setEn(e.target.value)} />
+                            </div>
+                            <div>
+                                <label className="block text-sm mb-1 text-muted">Boy (m)</label>
+                                <input type="number" step="any" min="0" className="form-input" required value={boy} onChange={e=>setBoy(e.target.value)} />
+                            </div>
+                            <div>
+                                <label className="block text-sm mb-1 text-muted">Yükseklik (m)</label>
+                                <input type="number" step="any" min="0" className="form-input" required value={yukseklik} onChange={e=>setYukseklik(e.target.value)} />
+                            </div>
+                            <div>
+                                <label className="block text-sm mb-1 text-muted">Minha (Düşülecek) (m²)</label>
+                                <input type="number" step="any" min="0" className="form-input" value={minha} onChange={e=>setMinha(e.target.value)} />
+                            </div>
+                        </div>
+                    )}
+
+                    {type === 'Donatı' && (
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm mb-1 text-muted">Donatı Çapı (Ø)</label>
+                                <select className="form-input" value={cap} onChange={e=>setCap(e.target.value)}>
+                                    {[8, 10, 12, 14, 16, 20, 22, 25, 32].map(c => (
+                                        <option key={c} value={c}>Ø{c}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm mb-1 text-muted">Tekil Boy (m)</label>
+                                <input type="number" step="any" min="0" className="form-input" required value={tekilBoy} onChange={e=>setTekilBoy(e.target.value)} />
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Auto Calculation Result Display */}
+                    <div className="mt-auto bg-primary-light dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-4 rounded-xl">
+                        <div className="text-sm text-blue-600 dark:text-blue-400 mb-1">Hesaplanan Toplam Metraj</div>
+                        <div className="text-3xl font-bold text-blue-700 dark:text-blue-300">
+                            {calculatedTotal.toFixed(2)} 
+                            <span className="text-lg font-normal ml-1">
+                                {type === 'Beton' ? 'm³' : type === 'Kalıp' ? 'm²' : 'kg'}
+                            </span>
+                        </div>
+                    </div>
+
+                    <button type="submit" className="btn btn-primary w-full py-3 mt-2 text-lg">
+                        Kaydet
+                    </button>
+                </form>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
